@@ -1,0 +1,438 @@
+
+---
+title: "Google Data Analytics Capstone: Analyze annual data of bike - Cyclist"
+author: 'Author: Đỗ Việt Hưng'
+date: "Creation Date: 2023-07-09"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+--- 
+
+#### [Case Study: How Does A Bike-Share Navigate Speedy Success?](https://d3c33hcgiwev3.cloudfront.net/aacF81H_TsWnBfNR_x7FIg_36299b28fa0c4a5aba836111daad12f1_DAC8-Case-Study-1.pdf?Expires=1689120000&Signature=Js-MRPXHfBlfHFkV5J9dG3~LanLPccZd0uC4hdoigTLtf~f3~YXUigUZuUGQ6mQdOr2qqi-naqxH-oD125Cdk~C7VTeG3PasE~iYmXzIBTgVNeSSTVm6WVwz9Sz8J3iPGtjCcvmmH0mfylMcBCmiJO8e5G0m0anSociswwEKMUo_&Key-Pair-Id=APKAJLTNE6QMUY6HBC5A)
+
+In this Case Study, I took on the role of a Junior Data Analyst at a hypothetical company - Cyclist, I tasked with analyzing data from the first 5 months of 2023 to support answering business questions for the company's upcoming marketing campaign 
+
+I will follow the steps of the data analysis process: Ask, Prepare, Process, Analyze and Share
+
+--- 
+
+## I. Ask
+
+### Business Task
+
+Provide marketing strategies to convert casual riders into member riders
+
+### Analysis questions
+
+1. How do members riders and causual riders differ in their use of Cyclistic bikes?
+
+2. Why do regular riders purchase Cyclistic's annual membership?
+
+3. How can Cyclistic utilize digital platforms to influence regular riders to become members?
+
+Moreno assigned me the first question to answer: How do members riders and causual riders differ in their use of Cyclistic bikes?
+
+---
+
+## II. Prepare
+
+### Resource
+
+I utilize Cyclistc's historical data to conduct analysis and identify trends over the first 5 months of 2023
+
+Data has been collected from [divvy_tripdata](https://divvy-tripdata.s3.amazonaws.com/index.html). Provided by Motivate International under this [license](https://ride.divvybikes.com/data-license-agreement)
+
+---
+
+## III. Process
+
+### 1. Combine Data
+
+Utilize data from 01/2023 to 05/2023
+
+- [divvy_tripdata_01_2023](https://divvy-tripdata.s3.amazonaws.com/202301-divvy-tripdata.zip)
+
+- [divvy_tripdata_02_2023](https://divvy-tripdata.s3.amazonaws.com/202302-divvy-tripdata.zip)
+
+- [divvy_tripdata_03_2023](https://divvy-tripdata.s3.amazonaws.com/202303-divvy-tripdata.zip)
+
+- [divvy_tripdata_04_2023](https://divvy-tripdata.s3.amazonaws.com/202304-divvy-tripdata.zip)
+
+- [divvy_tripdata_05_2023](https://divvy-tripdata.s3.amazonaws.com/202305-divvy-tripdata.zip)
+
+#### Conncet to SQL Server in R language
+
+Install Packages to connect with SQL
+
+```
+install.packages("odbc")
+
+install.packages("DBI")
+
+install.packages("tidyverse")
+
+```
+
+In there:
+
+- Package "odbc" allow connect with Database of SQL Server
+
+- Package "DBI" allow interact with Database
+
+
+Utilize libary of packages
+
+``` {r}
+
+library(odbc) 
+
+library(DBI)
+
+library(ggplot2)
+
+```
+
+Connect to SQL Server
+
+```{r include = FALSE}
+con = odbc::dbConnect(odbc(), Driver = "SQL Server", 
+                       Server = "GNOUD481902\\SQLEXPRESS", 
+                       Database = "Case_Study_1", 
+                       Trusted_Connection = "True")
+```
+
+Combine data of 5 tables into single table
+
+```{sql connection = con}
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'divvy_tripdata_2023')
+BEGIN
+	SELECT * INTO divvy_tripdata_2023 
+	FROM (
+		SELECT * FROM divvy_tripdata_01_2023
+		UNION ALL
+		SELECT * FROM divvy_tripdata_02_2023
+		UNION ALL
+		SELECT * FROM divvy_tripdata_03_2023
+		UNION ALL
+		SELECT * FROM divvy_tripdata_04_2023
+		UNION ALL
+		SELECT * FROM divvy_tripdata_05_2023 ) AS row_data
+END
+
+SELECT COUNT(*) AS count
+    FROM divvy_tripdata_2023
+  
+```
+
+In this way, 'divvy_tripdata_2023' table has been created with **1,607,841 records**
+
+### 2. Data Exploration
+
+The following table shows all field name and data type of table 'divvy_tripdata_2023'
+![](https://scontent.fhan14-2.fna.fbcdn.net/v/t1.15752-9/358472608_254637580627001_2310393048757323259_n.png?_nc_cat=106&ccb=1-7&_nc_sid=ae9488&_nc_ohc=qknQ-AkgjgkAX8TIDlu&_nc_ht=scontent.fhan14-2.fna&oh=03_AdRU8vFuHgAC-HDrLR1kpkaEbmewTcMvuAwYO7YGyAf1_w&oe=64D26DE7)
+
+The query bellow shows the number of  **NULL** vaule per field
+
+```{sql, connection = con}
+SELECT
+	COUNT(CASE WHEN ride_id IS NULL THEN 1 ELSE NULL END) AS ride_id,
+	COUNT(CASE WHEN rideable_type IS NULL THEN 1 ELSE NULL END) AS rideable_type,
+	COUNT(CASE WHEN started_at IS NULL THEN 1 ELSE NULL END) AS started_at,
+	COUNT(CASE WHEN ended_at IS NULL THEN 1 ELSE NULL END) AS ended_at,
+	COUNT(CASE WHEN start_station_name IS NULL THEN 1 ELSE NULL END) AS start_station_name,
+	COUNT(CASE WHEN start_station_id IS NULL THEN 1 ELSE NULL END) AS start_station_id,
+	COUNT(CASE WHEN end_station_name IS NULL THEN 1 ELSE NULL END) AS end_station_name,
+	COUNT(CASE WHEN end_station_id IS NULL THEN 1 ELSE NULL END) AS end_station_id,
+	COUNT(CASE WHEN start_lat IS NULL THEN 1 ELSE NULL END) AS start_lat,
+	COUNT(CASE WHEN start_lng IS NULL THEN 1 ELSE NULL END) AS start_lng,
+	COUNT(CASE WHEN end_lat IS NULL THEN 1 ELSE NULL END) AS end_lat,
+	COUNT(CASE WHEN end_lng IS NULL THEN 1 ELSE NULL END) AS end_lng,
+	COUNT(CASE WHEN member_casual IS NULL THEN 1 ELSE NULL END) AS member_casual
+FROM divvy_tripdata_2023
+
+```
+
+**Observation:**
+
+  - The *start_station_name* field has **241,158** **NULL** values and needs to be removed
+  - The *start_station_id* field has **241,290** **NULL** values and needs to be removed
+  - The *end_station_name* field has **256,913** **NULL** values and needs to be removed
+  - The *end_station_id* field has **257,054** **NULL** values and needs to be removed
+  - The *end_lat* and *end_lng* both fields have **1,571** **NULL** values and needs to be removed
+
+Due to *rise_id* field is a **Primary Key**, there will be no duplicate values 
+
+
+### 3. Data Cleaning
+
+The current format of the 'divvy_tripdata_2023' table is *yyyy-mm-dd hh:mm:ss*. To perform deeper analysis, I will create 4 new columns with respective value types: *Hour*, *Day of Week*, *Month*, and *Year*.
+
+Create a new column named *rise_length* to determine the duration of each trip (in minute format).
+
+All records containing **NULL** values will be removed
+
+```{sql connection = con}
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'pre_clean_combined_data')
+BEGIN
+	SELECT * INTO pre_clean_combined_data
+	FROM (
+		SELECT ride_id, rideable_type,
+		  CAST(DATENAME(hh, started_at) AS INT) AS hour,
+			DATENAME(dw, started_at) AS day_of_week,
+			DAY(started_at) AS day,
+			MONTH(started_at) AS month,
+			YEAR(started_at) AS year,
+			-- Cast the data type of the DateDiff function result to the round result of the division to 2 decimal places
+			ROUND(CAST(DATEDIFF(s, started_at, ended_at) AS float)/60, 2) AS ride_length_minute,
+			start_station_name, end_station_name, start_lat, start_lng, 
+			end_lat, end_lng, member_casual
+		FROM divvy_tripdata_2023
+		WHERE start_station_name IS NOT NULL AND
+			start_station_id IS NOT NULL AND
+			end_station_name IS NOT NULL AND
+			end_station_id IS NOT NULL AND
+			end_lat IS NOT NULL AND
+			end_lng IS NOT NULL
+	) AS cleaned
+END
+
+-- Sorting ride_length_minute column in ascending
+SELECT TOP(10) * FROM pre_clean_combined_data
+    ORDER BY ride_length_minute ASC
+          
+```
+
+
+**Observation:**
+
+- The result-set in *ride_length_minute* column have 8 values with value < 0  
+
+- The cause may be due to user error or system error when inserting data into the database
+
+
+```{sql connection = con}
+-- Remove records that *ride_length_minute* value < 0
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'clean_combined_data')
+BEGIN
+	SELECT * INTO clean_combined_data
+	FROM (
+		SELECT * FROM pre_clean_combined_data
+		wHERE ride_length_minute >= 0 ) AS completely_clean
+END
+
+-- Count the number of records in *clean_combined_data* 
+SELECT COUNT(*) AS count
+    FROM clean_combined_data
+
+```
+
+In this way, after the data clean step,  a new table named *clean_combined_data* will be obtained with **1,285,707 records**
+
+---
+
+## IV. Analyze And Share
+
+### 1. Statitics Analysis
+
+```{r}
+query = "SELECT
+	          member_casual,ROUND(AVG(ride_length_minute), 2) AS avg_ride_length
+         FROM clean_combined_data
+         GROUP BY member_casual"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+
+ggplot(data = result) +
+  geom_bar(stat = "identity", mapping = aes(x = member_casual, y = avg_ride_length, fill = member_casual)) +
+  geom_text(aes(x = member_casual, y = avg_ride_length, label = avg_ride_length), vjust = -0.25)
+
+```
+
+
+### 2. Analysis of a number of member riders and casual riders
+
+```{r}
+query = "SELECT member_casual, count(member_casual) AS total_riders
+            FROM clean_combined_data
+            GROUP BY member_casual"
+
+riders_rs = dbGetQuery(con, query)
+
+# Visualization
+
+ggplot(data = riders_rs) +
+  geom_bar(stat = "identity", mapping = aes(x = member_casual, y = total_riders, fill = member_casual)) +
+  geom_text(aes(x = member_casual, y = total_riders, label = total_riders), vjust = -0.25)
+
+```
+
+
+### 3. Analysis of a number of member riders and casual riders from vehicle type
+
+```{r}
+query = "SELECT 
+	          member_casual, rideable_type,
+	          COUNT(*) AS total_trips
+         FROM clean_combined_data
+         GROUP BY member_casual, rideable_type"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+
+ggplot(result, aes(x = member_casual, y = total_trips, fill = rideable_type)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = total_trips), position = position_dodge(width = 0.9), vjust = -0.25)
+
+```
+
+
+### 4. Analysis of total travel time per ride for member riders and casual riders from month, weekday and hour
+
+```{r}
+query = "SELECT 
+	          member_casual, month,
+          	ROUND(SUM(ride_length_minute), 2) AS total_trips
+         FROM clean_combined_data
+         GROUP BY month, member_casual
+         ORDER BY member_casual, month"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = month, y = total_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In First 5 months of 2023", subtitle = "Per Month")
+
+```
+
+
+**Observation:** With the visual chart *Total Trips In First 5 months of 2023*, both members and casual riders exhibit similar behavior, with fewer trips in the spring and gradually increasing in the summer months
+
+
+```{r }
+query = "SELECT member_casual, day_of_week,
+            CASE day_of_week
+                WHEN 'Monday' THEN 2
+                WHEN 'Tuesday' THEN 3
+                WHEN 'Wednesday' THEN 4
+                WHEN 'Thursday' THEN 5
+                WHEN 'Friday' THEN 6
+                WHEN 'Saturday' THEN 7
+                WHEN 'Sunday' THEN 8
+            END AS day_order,
+	          ROUND(SUM(ride_length_minute), 2) AS total_trips
+         FROM clean_combined_data
+         GROUP BY day_of_week, member_casual
+         ORDER BY member_casual, day_order"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = day_order, y = total_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In Day of Week", subtitle = "Per Day of Week")
+
+```
+
+
+**Observation:** With the visual chart 'Total Trips In Day of Week,'  members and casual riders exhibit contrasting travel behaviors. Member riders have higher travel time on weekdays and gradually decrease from Wednesday onwards, while casual riders have travel time on weekdays and significantly increase on the weekends
+
+
+```{r}
+query = "SELECT 
+	          member_casual, hour,
+          	ROUND(SUM(ride_length_minute), 2) AS total_trips
+         FROM clean_combined_data
+         GROUP BY hour, member_casual
+         ORDER BY member_casual, hour"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = hour, y = total_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In Hour", subtitle = "Per Hour")
+
+```
+
+**Observation:** With the visual chart 'Total Trips In Hour,' both members and casual riders exhibit similar behavior. They have minimal travel during the period from 12:00 am to 5:00 am, increased travel after 5:00 am, and the highest travel volume between 3:00 pm and 5:00 pm
+
+
+### 5. Analysis of average travel time per ride for member riders and casual riders from month, weekday and hour
+
+```{r}
+query = "SELECT 
+	          member_casual, month,
+          	ROUND(AVG(ride_length_minute), 2) AS AVG_trips
+         FROM clean_combined_data
+         GROUP BY month, member_casual
+         ORDER BY member_casual, month"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = month, y = AVG_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In First 5 months of 2023", subtitle = "Per Month")
+
+```
+
+```{r}
+query = "SELECT member_casual, day_of_week,
+            CASE day_of_week
+                WHEN 'Monday' THEN 2
+                WHEN 'Tuesday' THEN 3
+                WHEN 'Wednesday' THEN 4
+                WHEN 'Thursday' THEN 5
+                WHEN 'Friday' THEN 6
+                WHEN 'Saturday' THEN 7
+                WHEN 'Sunday' THEN 8
+            END AS day_order,
+	          ROUND(AVG(ride_length_minute), 2) AS AVG_trips
+         FROM clean_combined_data
+         GROUP BY day_of_week, member_casual
+         ORDER BY member_casual, day_order"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = day_order, y = AVG_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In Day of Week", subtitle = "Per Day of Week")
+
+```
+
+```{r}
+query = "SELECT 
+	          member_casual, hour,
+          	ROUND(AVG(ride_length_minute), 2) AS AVG_trips
+         FROM clean_combined_data
+         GROUP BY hour, member_casual
+         ORDER BY member_casual, hour"
+
+result = dbGetQuery(con, query)
+
+# Visualization
+ggplot(data = result, aes(x = hour, y = AVG_trips, group = as.factor(member_casual), color = member_casual)) + geom_line() + geom_point() + labs(title = "Total Trips In Hour", subtitle = "Per Hour")
+
+```
+
+**Observation:** Through the three visual charts, it is observed that the travel time of member riders tends to remain consistent across hours, days of the week, or months. On the other hand, casual riders tend to travel more than twice as much. They have a higher tendency to travel during the time frame of 8:00 am to 2:00 pm, on weekends, and during the summer months   
+
+---
+
+### Reference
+[Kaggle](https://www.kaggle.com/code/mmaguire/google-data-analytics-capstone-case-study-1#Introduction:)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
